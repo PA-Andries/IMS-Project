@@ -1,0 +1,9 @@
+requests
+pandas
+numpy
+matplotlib
+scikit-learn
+boto3
+# Optional: turn anomaly_detection.py into a Jupyter notebook
+#   pip install jupytext && jupytext --to notebook anomaly_detection.py
+# jupytext
