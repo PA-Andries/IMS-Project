@@ -1,0 +1,381 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temperature Anomaly Detection</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#ffffff; --ink:#0f2a3d; --muted:#5b7689; --navy:#0b2c44;
+  --teal:#0e7c8b; --teal2:#11a3b8; --blue:#1f6feb; --sky:#38bdf8;
+  --panel:#eef6f9; --panel2:#e2eff4; --line:#cfe0e8;
+  --grad:linear-gradient(90deg,#0e7c8b,#1f6feb);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#08222e;font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.deck{position:relative;width:min(100vw,calc(100vh*16/9));height:min(100vh,calc(100vw*9/16));background:var(--bg);container-type:size;overflow:hidden;box-shadow:0 10px 60px rgba(0,0,0,.45)}
+
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease}
+.slide.active{opacity:1;visibility:visible;pointer-events:auto}
+.accent{height:.9cqw;background:var(--grad)}
+.body{flex:1;display:flex;flex-direction:column;padding:4.5cqw 5cqw 1.5cqw 5cqw;min-height:0}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:.6cqw 5cqw 1.1cqw;color:var(--muted);font-size:1.45cqw;border-top:1px solid var(--line)}
+.foot .ft{font-weight:600;color:var(--navy);letter-spacing:.02em}
+.foot .fc{font-variant-numeric:tabular-nums}
+
+.eyebrow{color:var(--teal);font-size:1.6cqw;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin:0 0 1cqw}
+h1.title{font-size:6.6cqw;line-height:1.04;margin:0;color:var(--navy);font-weight:800;letter-spacing:-.01em}
+h2.title{font-size:4.4cqw;line-height:1.05;margin:0 0 2cqw;color:var(--navy);font-weight:800;letter-spacing:-.01em}
+
+ul.bul{list-style:none;margin:.4cqw 0 0;padding:0}
+ul.bul li{position:relative;font-size:2.5cqw;line-height:1.4;padding:.9cqw 0 .9cqw 3.4cqw;color:var(--ink)}
+ul.bul li::before{content:"";position:absolute;left:0;top:1.9cqw;width:1.6cqw;height:1.6cqw;border-radius:.3cqw;background:var(--grad)}
+ul.bul li b{color:var(--navy)}
+.small li{font-size:2.15cqw;padding:.6cqw 0 .6cqw 3cqw}
+.small li::before{top:1.5cqw}
+
+.cols{display:flex;gap:3cqw;flex:1;min-height:0;align-items:stretch}
+.col{flex:1;display:flex;flex-direction:column;min-height:0;justify-content:center}
+
+/* figures */
+.fig{display:flex;flex-direction:column;min-height:0;flex:1}
+.fig img{width:100%;flex:1;min-height:0;object-fit:contain;border:1px solid var(--line);border-radius:.7cqw;background:#fff}
+.figcap{margin-top:.7cqw;font-size:1.55cqw;color:var(--muted);text-align:center}
+.figcap b{color:var(--navy)}
+
+.note{margin-top:auto;padding:1cqw 1.4cqw;background:var(--panel);border-left:.5cqw solid var(--teal);border-radius:.4cqw;font-size:1.55cqw;color:var(--muted);font-style:italic}
+.note b{color:var(--teal);font-style:normal;letter-spacing:.05em;text-transform:uppercase;font-size:1.25cqw}
+body.hide-notes .note{display:none}
+
+/* title slide */
+.cover{justify-content:center;background:radial-gradient(120% 120% at 80% 0%,#eef7fb 0%,#ffffff 55%)}
+.cover .sub{font-size:2.5cqw;color:var(--muted);margin:1.8cqw 0 0;max-width:78%}
+.chiprow{display:flex;gap:1cqw;margin-top:3cqw;flex-wrap:wrap}
+.chip{background:var(--panel2);color:var(--navy);font-size:1.6cqw;font-weight:600;padding:.7cqw 1.6cqw;border-radius:5cqw;border:1px solid var(--line)}
+.author{margin-top:3.4cqw;font-size:3cqw;font-weight:800;color:var(--navy);letter-spacing:-.01em}
+
+/* pipeline */
+.pipe{display:flex;align-items:stretch;justify-content:center;gap:0;flex:1;min-height:0;padding:1.5cqw 0}
+.pbox{flex:1;background:var(--panel);border:1px solid var(--line);border-top:.6cqw solid var(--teal);border-radius:.8cqw;padding:1.4cqw 1cqw;display:flex;flex-direction:column;gap:.7cqw;text-align:center;justify-content:center}
+.pbox .pn{width:3cqw;height:3cqw;margin:0 auto;border-radius:50%;background:var(--grad);color:#fff;font-weight:700;font-size:1.7cqw;display:flex;align-items:center;justify-content:center}
+.pbox .pt{font-size:1.85cqw;font-weight:700;color:var(--navy);line-height:1.15}
+.pbox .ps{font-size:1.4cqw;color:var(--muted);line-height:1.2}
+.arrow{flex:0 0 3cqw;display:flex;align-items:center;justify-content:center;color:var(--blue);font-size:2.8cqw;font-weight:800}
+
+/* method cards */
+.cards{display:flex;gap:1.5cqw;flex:1;min-height:0}
+.card{flex:1;background:#fff;border:1px solid var(--line);border-radius:.9cqw;padding:1.6cqw 1.3cqw;display:flex;flex-direction:column;gap:.9cqw;box-shadow:0 2px 10px rgba(11,44,68,.05)}
+.card .cn{width:3cqw;height:3cqw;border-radius:.5cqw;background:var(--grad);color:#fff;font-weight:800;font-size:1.8cqw;display:flex;align-items:center;justify-content:center}
+.card .ct{font-size:2cqw;font-weight:700;color:var(--navy);line-height:1.1}
+.card .cd{font-size:1.6cqw;color:var(--muted);line-height:1.3}
+.votebar{margin-top:1.6cqw;background:var(--navy);color:#fff;border-radius:.7cqw;padding:1.1cqw 1.6cqw;font-size:2.1cqw;font-weight:600;text-align:center}
+.votebar b{color:var(--sky)}
+
+/* stat bars (slide 5) */
+.statset{margin-top:1.5cqw;display:flex;flex-direction:column;gap:2cqw}
+.statrow{display:flex;flex-direction:column;gap:.6cqw}
+.statrow .lab{display:flex;justify-content:space-between;font-size:2.1cqw;font-weight:600;color:var(--navy)}
+.track{height:3.4cqw;background:var(--panel2);border-radius:1.7cqw;overflow:hidden}
+.fill{height:100%;border-radius:1.7cqw;background:var(--grad)}
+.fill.alt{background:linear-gradient(90deg,#11a3b8,#38bdf8)}
+.takeaway{margin-top:2cqw;font-size:2.2cqw;color:var(--ink);background:var(--panel);border-radius:.7cqw;padding:1.3cqw 1.6cqw;border-left:.5cqw solid var(--blue)}
+.takeaway b{color:var(--navy)}
+
+.chartwrap{position:relative;width:100%;flex:1;min-height:0}
+
+/* sensitivity table */
+table.sens{width:100%;border-collapse:collapse;font-size:2cqw;margin-top:.6cqw}
+table.sens th,table.sens td{padding:.9cqw .6cqw;text-align:center;border-bottom:1px solid var(--line)}
+table.sens th{background:var(--navy);color:#fff;font-weight:700}
+table.sens td:first-child{font-weight:700;color:var(--navy)}
+table.sens tr:nth-child(even) td{background:var(--panel)}
+
+.tools{display:flex;flex-wrap:wrap;gap:1cqw;margin-top:2cqw}
+.tool{background:var(--panel2);border:1px solid var(--line);color:var(--navy);font-weight:600;font-size:1.7cqw;padding:.7cqw 1.5cqw;border-radius:.5cqw}
+
+/* controls */
+.controls{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:rgba(11,44,68,.9);backdrop-filter:blur(6px);padding:8px 12px;border-radius:40px;z-index:50;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.controls button{background:rgba(255,255,255,.12);color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.controls button:hover{background:rgba(255,255,255,.26)}
+.controls .count{color:#fff;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;min-width:54px;text-align:center}
+.controls .ico{width:36px;height:36px;font-size:15px}
+.hint{position:fixed;bottom:14px;right:16px;color:rgba(255,255,255,.55);font-size:12px;z-index:50}
+@media (max-width:700px){.hint{display:none}}
+
+@media print{
+  @page{size:landscape;margin:6mm}
+  html,body{background:#fff;height:auto}
+  .stage{position:static;display:block}
+  .deck{position:static;width:100%;height:auto;box-shadow:none;container-type:normal;overflow:visible;background:#fff}
+  .slide{position:relative;inset:auto;opacity:1!important;visibility:visible!important;display:flex!important;container-type:size;width:100%;aspect-ratio:16/9;page-break-after:always;break-after:page;border:1px solid #e3edf2}
+  .slide:last-child{page-break-after:auto;break-after:auto}
+  .note,.controls,.hint{display:none!important}
+}
+</style>
+
+<div class="stage">
+<div class="deck" id="deck">
+
+  <!-- 1 — TITLE -->
+  <section class="slide active cover">
+    <div class="accent"></div>
+    <div class="body" style="padding-left:6cqw">
+      <p class="eyebrow">Intelligent Measurement Systems · Project 1</p>
+      <h1 class="title">Temperature&nbsp;Anomaly<br>Detection</h1>
+      <p class="sub">Spotting unusual temperatures in a live weather stream.</p>
+      <div class="author">Pierre Andries</div>
+      <div class="note"><b>Note</b> &nbsp;Take a live stream of weather data and automatically flag the temperatures that look abnormal.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">1 / 10</span></div>
+  </section>
+
+  <!-- 2 — GOAL -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Goal</p>
+      <h2 class="title">What we want to do</h2>
+      <ul class="bul">
+        <li>Flag <b>unusual temperatures</b> in a stream of readings.</li>
+        <li>Build a small pipeline: <b>collect → store → detect</b>.</li>
+      </ul>
+      <div class="note"><b>Note</b> &nbsp;Two parts: detect the odd values, and wrap it in a reproducible end-to-end pipeline.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">2 / 10</span></div>
+  </section>
+
+  <!-- 3 — DATA -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Data</p>
+      <h2 class="title">Where it comes from</h2>
+      <ul class="bul">
+        <li>Shared weather <b>REST API</b>, station <b>GDN_01</b>.</li>
+        <li>Each reading: temperature, humidity, pressure, wind, rain, cloud.</li>
+        <li>One every <b>~10 min</b> → one pull ≈ <b>500 records ≈ 3.5 days</b>.</li>
+      </ul>
+      <div class="note"><b>Note</b> &nbsp;A single API pull gives about three and a half days of ten-minute readings.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">3 / 10</span></div>
+  </section>
+
+  <!-- 4 — PIPELINE -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Architecture</p>
+      <h2 class="title">The pipeline</h2>
+      <div class="pipe">
+        <div class="pbox"><div class="pn">1</div><div class="pt">Weather API</div><div class="ps">batch pull</div></div>
+        <div class="arrow">→</div>
+        <div class="pbox"><div class="pn">2</div><div class="pt">Collector</div><div class="ps">Python</div></div>
+        <div class="arrow">→</div>
+        <div class="pbox"><div class="pn">3</div><div class="pt">Storage</div><div class="ps">CSV + AWS S3</div></div>
+        <div class="arrow">→</div>
+        <div class="pbox"><div class="pn">4</div><div class="pt">Clean</div><div class="ps">parse · dedupe</div></div>
+        <div class="arrow">→</div>
+        <div class="pbox"><div class="pn">5</div><div class="pt">Detect</div><div class="ps">5 methods · vote</div></div>
+        <div class="arrow">→</div>
+        <div class="pbox"><div class="pn">6</div><div class="pt">Charts</div><div class="ps">flags + report</div></div>
+      </div>
+      <div class="note"><b>Note</b> &nbsp;Raw data is stored on S3, then cleaned, run through detection, and turned into charts.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">4 / 10</span></div>
+  </section>
+
+  <!-- 5 — KEY INSIGHT -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Key insight</p>
+      <h2 class="title">Raw data is mostly noise</h2>
+      <div class="statset">
+        <div class="statrow">
+          <div class="lab"><span>Whole-series spread (std)</span><span>≈ 2.2 °C</span></div>
+          <div class="track"><div class="fill" style="width:70%"></div></div>
+        </div>
+        <div class="statrow">
+          <div class="lab"><span>Typical step between two readings</span><span>≈ 2.6 °C</span></div>
+          <div class="track"><div class="fill alt" style="width:81%"></div></div>
+        </div>
+      </div>
+      <div class="takeaway">The jump between two readings ≈ the whole series' spread → <b>no clean outliers to find on raw data.</b></div>
+      <div class="note"><b>Note</b> &nbsp;Step-to-step noise is as big as the entire signal — the raw stream is noise-dominated.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">5 / 10</span></div>
+  </section>
+
+  <!-- 6 — METHODS -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Methods</p>
+      <h2 class="title">Five detectors, one vote</h2>
+      <div class="cards">
+        <div class="card"><div class="cn">1</div><div class="ct">Global Z</div><div class="cd">vs overall mean</div></div>
+        <div class="card"><div class="cn">2</div><div class="ct">Rolling Z</div><div class="cd">vs recent context — best for streams</div></div>
+        <div class="card"><div class="cn">3</div><div class="ct">IQR</div><div class="cd">outside the usual range</div></div>
+        <div class="card"><div class="cn">4</div><div class="ct">Rate-of-change</div><div class="cd">sudden jump (top 1%)</div></div>
+        <div class="card"><div class="cn">5</div><div class="ct">Isolation Forest</div><div class="cd">simple ML model</div></div>
+      </div>
+      <div class="votebar">Combined by <b>majority vote</b> — flagged when <b>≥ 2 methods agree</b>.</div>
+      <div class="note"><b>Note</b> &nbsp;Three statistical detectors, one jump rule, one ML model — voting makes it robust.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">6 / 10</span></div>
+  </section>
+
+  <!-- 7 — RESULTS -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Results · GDN_01</p>
+      <h2 class="title">What it found</h2>
+      <div class="cols">
+        <div class="col">
+          <ul class="bul small">
+            <li>Statistical methods → <b>0</b> anomalies. On noisy raw data, that's <b>correct</b>.</li>
+            <li>Jump rule + Isolation Forest → a <b>handful of candidates</b>.</li>
+            <li>Kept the ones <b>≥ 2 methods</b> agree on.</li>
+          </ul>
+        </div>
+        <div class="col">
+          <div class="fig">
+            <img src="outputs/01_temperature_anomalies.png" alt="Temperature with anomalies">
+            <div class="figcap"><b>Fig. 1</b> — Temperature stream; anomalies in red (&ge;2 methods), orange (1 method).</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Note</b> &nbsp;On raw data the statistical detectors find nothing — that's expected; the jump rule and ML surface a few candidates.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">7 / 10</span></div>
+  </section>
+
+  <!-- 8 — RAW vs AGGREGATED -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Raw vs aggregated</p>
+      <h2 class="title">Aggregation reveals the signal</h2>
+      <div class="cols">
+        <div class="col">
+          <ul class="bul small">
+            <li>Hourly averaging cuts the noise: <b>std 2.2 → 0.8 °C</b> (≈ √6).</li>
+            <li>The real daily trend appears.</li>
+          </ul>
+        </div>
+        <div class="col">
+          <div class="fig">
+            <img src="outputs/06_raw_vs_hourly.png" alt="Raw vs hourly temperature">
+            <div class="figcap"><b>Fig. 2</b> — Raw 10-min stream vs hourly-averaged temperature.</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Note</b> &nbsp;Averaging six readings per hour roughly halves the noise, so detection only becomes meaningful after aggregation.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">8 / 10</span></div>
+  </section>
+
+  <!-- 9 — SENSITIVITY -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Sensitivity</p>
+      <h2 class="title">How sensitive is it?</h2>
+      <div class="cols">
+        <div class="col">
+          <ul class="bul small">
+            <li><b>Test:</b> add 12 fake spikes, count how many the detector catches.</li>
+            <li>Threshold <b>k</b> = how strict the detector is.</li>
+            <li><b>Lower k</b> → catches more, but more false alarms.<br><b>Higher k</b> → safer, but misses some.</li>
+          </ul>
+          <div class="takeaway" style="margin-top:1.2cqw">False alarms stayed <b>below 0.5%</b> at every setting.</div>
+        </div>
+        <div class="col">
+          <div class="fig">
+            <div class="chartwrap"><canvas id="chartSens"></canvas></div>
+            <div class="figcap"><b>Fig. 3</b> — Catch rate vs strictness (k).</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Note</b> &nbsp;I validated the detector by injecting known spikes — a stricter threshold catches fewer, but with fewer false alarms.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">9 / 10</span></div>
+  </section>
+
+  <!-- 10 — CONCLUSIONS -->
+  <section class="slide">
+    <div class="accent"></div>
+    <div class="body">
+      <p class="eyebrow">Takeaways</p>
+      <h2 class="title">In short</h2>
+      <ul class="bul">
+        <li>Raw 10-min stream is <b>noise-dominated</b> — "nothing found" is the right answer.</li>
+        <li><b>Aggregate first</b>; use <b>rolling context</b> for streams.</li>
+        <li>The threshold sets the <b>recall ↔ false-positive</b> trade-off.</li>
+        <li>Raw data stored on <b>AWS S3</b> — fully reproducible.</li>
+      </ul>
+      <div class="tools">
+        <span class="tool">Python</span><span class="tool">pandas</span><span class="tool">NumPy</span><span class="tool">scikit-learn</span><span class="tool">matplotlib</span><span class="tool">AWS S3</span>
+      </div>
+      <div class="note"><b>Note</b> &nbsp;Aggregate, use rolling context, pick the threshold for your trade-off. Thanks — questions welcome.</div>
+    </div>
+    <div class="foot"><span class="ft">Temperature Anomaly Detection</span><span class="fc">10 / 10</span></div>
+  </section>
+
+</div>
+</div>
+
+<div class="controls">
+  <button id="prev" title="Previous (←)">‹</button>
+  <span class="count"><span id="cur">1</span> / 10</span>
+  <button id="next" title="Next (→)">›</button>
+  <button class="ico" id="notesBtn" title="Toggle notes (S)">📝</button>
+  <button class="ico" id="fsBtn" title="Fullscreen (F)">⛶</button>
+  <button class="ico" id="printBtn" title="Print / PDF (P)">🖨</button>
+</div>
+<div class="hint">← → navigate · S notes · F fullscreen · P print</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+let cur=0;
+function show(i){
+  cur=Math.max(0,Math.min(slides.length-1,i));
+  slides.forEach((s,idx)=>s.classList.toggle('active',idx===cur));
+  document.getElementById('cur').textContent=cur+1;
+}
+const next=()=>show(cur+1), prev=()=>show(cur-1);
+document.getElementById('next').onclick=next;
+document.getElementById('prev').onclick=prev;
+document.getElementById('notesBtn').onclick=()=>document.body.classList.toggle('hide-notes');
+document.getElementById('printBtn').onclick=()=>window.print();
+function toggleFs(){ if(!document.fullscreenElement){document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();}else{document.exitFullscreen&&document.exitFullscreen();} }
+document.getElementById('fsBtn').onclick=toggleFs;
+
+document.addEventListener('keydown',e=>{
+  if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){e.preventDefault();show(0);}
+  else if(e.key==='End'){e.preventDefault();show(slides.length-1);}
+  else if(e.key==='s'||e.key==='S'){document.body.classList.toggle('hide-notes');}
+  else if(e.key==='f'||e.key==='F'){toggleFs();}
+  else if(e.key==='p'||e.key==='P'){e.preventDefault();window.print();}
+});
+
+const TEAL='#0e7c8b', BLUE='#1f6feb', NAVY='#0b2c44', GRID='#dce8ee';
+function buildCharts(){
+  document.body.classList.add('hide-notes');   // clean slides by default; press S for notes
+  if(typeof Chart==='undefined') return;
+  Chart.defaults.font.family='Segoe UI, system-ui, sans-serif';
+  Chart.defaults.font.size=15;
+  Chart.defaults.color='#3d5a6c';
+  new Chart(document.getElementById('chartSens'),{
+    type:'bar',
+    data:{labels:['k = 2.0','k = 2.5','k = 3.0','k = 3.5'],
+      datasets:[{label:'Catch rate',data:[0.58,0.42,0.08,0.00],backgroundColor:TEAL,borderRadius:6,maxBarThickness:70}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},title:{display:true,text:'Catch rate (recall) vs strictness k',color:NAVY,font:{size:16,weight:'700'}}},
+      scales:{y:{beginAtZero:true,max:0.6,grid:{color:GRID},title:{display:true,text:'catch rate (0 to 1)'}},x:{grid:{display:false}}}}
+  });
+}
+window.addEventListener('load',buildCharts);
+</script>
